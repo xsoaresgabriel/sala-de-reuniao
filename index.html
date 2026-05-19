@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Agenda — Sala de Reunião</title>
+
+<style>
+  /* ============================================================
+     CONFIGURAÇÃO: Substitua os valores abaixo pelos seus
+     ============================================================ */
+
+  :root {
+    --accent: #0F6CBD;
+    --accent-dark: #0a4f9e;
+    --accent-light: #e8f1fb;
+    --success: #107C10;
+    --danger: #A4262C;
+    --warn: #8A5B00;
+    --bg: #f5f5f5;
+    --surface: #ffffff;
+    --border: rgba(0,0,0,0.10);
+    --border-strong: rgba(0,0,0,0.18);
+    --text: #1a1a1a;
+    --text-2: #555;
+    --text-3: #888;
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    min-height: 100vh;
+  }
+
+  /* ── App shell ── */
+  #app { display: none; flex-direction: column; height: 100vh; }
+  #app.visible { display: flex; }
+
+  /* ── Login screen ── */
+  #login-screen {
+    display: flex; align-items: center; justify-content: center;
+    height: 100vh; background: var(--bg);
+  }
+  .login-card {
+    background: var(--surface); border-radius: var(--radius-lg);
+    border: 1px solid var(--border); padding: 2.5rem 2rem;
+    text-align: center; width: 320px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+  }
+  .login-card .logo {
+    width: 48px; height: 48px; border-radius: 10px;
+    background: var(--accent); display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 1rem;
+  }
+  .login-card .logo svg { width: 28px; height: 28px; fill: #fff; }
+  .login-card h2 { font-size: 18px; font-weight: 600; margin-bottom: 6px; }
+  .login-card p { font-size: 13px; color: var(--text-2); margin-bottom: 1.5rem; }
+  .btn-ms {
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    width: 100%; padding: 10px; border-radius: var(--radius);
+    border: 1px solid var(--border-strong); background: var(--surface);
+    font-size: 14px; font-weight: 500; cursor: pointer; transition: background 0.15s;
+  }
+  .btn-ms:hover { background: #f0f0f0; }
+  .btn-ms img { width: 20px; }
+
+  /* ── Top bar ── */
+  .topbar {
+    background: var(--surface); border-bottom: 1px solid var(--border);
+    padding: 0 1.25rem; height: 52px;
+    display: flex; align-items: center; gap: 12px;
+    flex-shrink: 0;
+  }
+  .topbar-title {
+    font-size: 16px; font-weight: 600; color: var(--text);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .topbar-title svg { width: 20px; height: 20px; fill: var(--accent); }
+  .spacer { flex: 1; }
+  .nav-arrow {
+    width: 32px; height: 32px; border-radius: var(--radius);
+    border: 1px solid var(--border-strong); background: none;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    color: var(--text); font-size: 16px; transition: background 0.12s;
+  }
+  .nav-arrow:hover { background: var(--accent-light); }
+  .date-display {
+    font-size: 14px; font-weight: 500; min-width: 200px; text-align: center;
+    color: var(--text);
+  }
+  .btn-today {
+    padding: 5px 12px; border-radius: var(--radius);
+    border: 1px solid var(--border-strong); background: none;
+    font-size: 13px; cursor: pointer; transition: background 0.12s;
+  }
+  .btn-today:hover { background: var(--accent-light); }
+  .btn-reservar {
+    padding: 6px 14px; border-radius: var(--radius);
+    border: none; background: var(--accent); color: #fff;
+    font-size: 13px; font-weight: 500; cursor: pointer;
+    display: flex; align-items: center; gap: 6px; transition: background 0.12s;
+  }
+  .btn-reservar:hover { background: var(--accent-dark); }
+
+  /* ── Grid ── */
+  .grid-wrapper { flex: 1; overflow-y: auto; }
+  .grid {
+    display: grid;
+    grid-template-columns: 64px repeat(var(--room-count, 1), 1fr);
+    min-width: 400px;
+  }
+
+  .col-header {
+    padding: 10px 14px; border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface); text-align: center; position: sticky; top: 0; z-index: 10;
+  }
+  .col-header:first-child { background: var(--bg); border-right: 1px solid var(--border); }
+  .col-name { font-size: 13px; font-weight: 600; color: var(--text); }
+  .col-cap { font-size: 11px; color: var(--text-3); margin-top: 2px; }
+
+  .time-cell {
+    height: 52px; border-right: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: flex-start; justify-content: flex-end;
+    padding: 4px 6px 0;
+    font-size: 11px; color: var(--text-3); background: var(--bg);
+  }
+  .slot {
+    height: 52px; border-right: 1px solid var(--border);
+    border-bottom: 1px dotted var(--border);
+    position: relative; cursor: pointer; background: var(--surface);
+    transition: background 0.1s;
+  }
+  .slot:hover { background: #f0f6ff; }
+  .slot.half { border-bottom-style: dotted; }
+
+  .booking-block {
+    position: absolute; left: 3px; right: 3px; top: 2px;
+    border-radius: 6px; padding: 4px 7px;
+    font-size: 11px; cursor: pointer; z-index: 2;
+    overflow: hidden; transition: filter 0.15s;
+  }
+  .booking-block:hover { filter: brightness(0.93); }
+  .booking-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .booking-person { opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .booking-block.c0 { background: #ddeeff; color: #0a4580; border-left: 3px solid #0F6CBD; }
+  .booking-block.c1 { background: #e8dcf8; color: #3a1f7a; border-left: 3px solid #6f42c1; }
+  .booking-block.c2 { background: #d4f0e4; color: #0a4a28; border-left: 3px solid #107C10; }
+
+  .now-line {
+    position: absolute; left: 0; right: 0; height: 2px;
+    background: #c50f1f; z-index: 5; pointer-events: none;
+  }
+  .now-line::before {
+    content: ''; position: absolute; left: -1px; top: -4px;
+    width: 9px; height: 9px; border-radius: 50%; background: #c50f1f;
+  }
+
+  /* ── Loading overlay ── */
+  .loading {
+    position: absolute; inset: 0; background: rgba(255,255,255,0.7);
+    display: flex; align-items: center; justify-content: center; z-index: 20;
+    font-size: 13px; color: var(--text-2); gap: 8px;
+  }
+  .spinner {
+    width: 18px; height: 18px; border: 2px solid var(--border-strong);
+    border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Modal ── */
+  .modal-bg {
+    display: none; position: fixed; inset: 0;
+    background: rgba(0,0,0,0.4); z-index: 50;
+    align-items: center; justify-content: center;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--surface); border-radius: var(--radius-lg);
+    border: 1px solid var(--border); padding: 1.5rem;
+    width: 380px; max-width: 96vw;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+  }
+  .modal-header {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem;
+  }
+  .modal-header h3 { font-size: 16px; font-weight: 600; }
+  .modal-close {
+    width: 28px; height: 28px; border: none; background: none; cursor: pointer;
+    font-size: 18px; color: var(--text-2); border-radius: 4px; line-height: 1;
+  }
+  .modal-close:hover { background: #f0f0f0; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label { display: block; font-size: 12px; font-weight: 500; color: var(--text-2); margin-bottom: 4px; }
+  .form-group input, .form-group select {
+    width: 100%; padding: 8px 10px; font-size: 14px;
+    border: 1px solid var(--border-strong); border-radius: var(--radius);
+    background: var(--surface); color: var(--text); outline: none;
+    font-family: inherit;
+  }
+  .form-group input:focus, .form-group select:focus {
+    border-color: var(--accent); box-shadow: 0 0 0 2px rgba(15,108,189,0.15);
+  }
+  .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 1.25rem; padding-top: 1rem; border-top: 1px solid var(--border); }
+  .btn-cancel {
+    padding: 8px 16px; border: 1px solid var(--border-strong);
+    border-radius: var(--radius); background: none; cursor: pointer; font-size: 13px;
+  }
+  .btn-cancel:hover { background: #f5f5f5; }
+  .btn-save {
+    padding: 8px 18px; border: none; border-radius: var(--radius);
+    background: var(--accent); color: #fff; cursor: pointer; font-size: 13px; font-weight: 500;
+  }
+  .btn-save:hover { background: var(--accent-dark); }
+  .btn-save:disabled { background: #aaa; cursor: not-allowed; }
+  .btn-delete {
+    padding: 8px 14px; border: none; border-radius: var(--radius);
+    background: var(--danger); color: #fff; cursor: pointer; font-size: 13px; margin-right: auto;
+  }
+  .btn-delete:hover { background: #7f1d1d; }
+
+  .toast {
+    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    background: #1a1a1a; color: #fff; padding: 10px 18px; border-radius: 8px;
+    font-size: 13px; z-index: 100; opacity: 0; transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+
+  .error-msg { font-size: 12px; color: var(--danger); margin-top: 6px; display: none; }
+  .conflict-msg { font-size: 12px; color: var(--warn); margin-top: 4px; display: none; }
+
+  .setup-banner {
+    background: #fff8e1; border-bottom: 1px solid #f0cc66;
+    padding: 10px 16px; font-size: 12px; color: #7a5c00;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .setup-banner code {
+    background: rgba(0,0,0,0.07); border-radius: 4px; padding: 1px 5px; font-size: 11px;
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════
+     LOGIN
+═══════════════════════════════════════════════ -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="logo">
+      <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/></svg>
+    </div>
+    <h2>Agenda de Salas</h2>
+    <p>Entre com sua conta Microsoft para ver e reservar salas.</p>
+    <button class="btn-ms" onclick="signIn()">
+      <img src="https://upload.wikimedia.org/wikipedia/commons/4/44/Microsoft_logo.svg" alt="MS" />
+      Entrar com Microsoft
+    </button>
+    <div id="login-error" class="error-msg" style="display:none; text-align:center; margin-top:12px;"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     APP
+═══════════════════════════════════════════════ -->
+<div id="app">
+  <div class="setup-banner" id="setup-banner" style="display:none">
+    ⚠️ Configure o arquivo: defina <code>TENANT_ID</code>, <code>CLIENT_ID</code>, <code>SITE_ID</code> e <code>LIST_ID</code> no topo do script.
+  </div>
+
+  <div class="topbar">
+    <div class="topbar-title">
+      <svg viewBox="0 0 24 24"><path d="M3 3h8v8H3zm10 0h8v8h-8zM3 13h8v8H3zm10 0h8v8h-8z"/></svg>
+      Sala de Reunião
+    </div>
+    <div class="spacer"></div>
+    <button class="nav-arrow" onclick="changeDay(-1)">&#8249;</button>
+    <div class="date-display" id="date-display">—</div>
+    <button class="nav-arrow" onclick="changeDay(1)">&#8250;</button>
+    <button class="btn-today" onclick="goToday()">Hoje</button>
+    <button class="btn-reservar" onclick="openNewModal()">+ Reservar</button>
+  </div>
+
+  <div class="grid-wrapper" id="grid-wrapper" style="position:relative">
+    <div id="loading-overlay" class="loading">
+      <div class="spinner"></div> Carregando reservas...
+    </div>
+    <div class="grid" id="grid" style="--room-count:3"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════
+     MODAL
+═══════════════════════════════════════════════ -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modal-title">Nova reserva</h3>
+      <button class="modal-close" onclick="closeModal()">×</button>
+    </div>
+    <div class="form-group">
+      <label>Título da reunião *</label>
+      <input type="text" id="f-title" placeholder="Ex: Alinhamento de sprint" />
+    </div>
+    <div class="form-group">
+      <label>Responsável *</label>
+      <input type="text" id="f-person" placeholder="Nome do responsável" />
+    </div>
+    <div class="form-group">
+      <label>Sala</label>
+      <select id="f-room"></select>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label>Horário de início</label>
+        <select id="f-start"></select>
+      </div>
+      <div class="form-group">
+        <label>Duração</label>
+        <select id="f-duration">
+          <option value="1">30 minutos</option>
+          <option value="2" selected>1 hora</option>
+          <option value="3">1h30</option>
+          <option value="4">2 horas</option>
+          <option value="6">3 horas</option>
+          <option value="8">4 horas</option>
+        </select>
+      </div>
+    </div>
+    <div class="conflict-msg" id="conflict-msg">⚠️ Conflito de horário nesta sala.</div>
+    <div class="modal-actions">
+      <button class="btn-delete" id="btn-delete" onclick="deleteBooking()" style="display:none">🗑 Excluir</button>
+      <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+      <button class="btn-save" id="btn-save" onclick="saveBooking()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<!-- ══════════════════════════════════════════════
+     SCRIPT PRINCIPAL
+═══════════════════════════════════════════════ -->
+<script>
+/* ================================================================
+   ⚙️  CONFIGURAÇÃO — edite estes valores antes de publicar
+   ================================================================
+
+   1. TENANT_ID  → Azure Portal > Azure Active Directory > Overview
+   2. CLIENT_ID  → App registrations > sua app > Application (client) ID
+   3. SITE_ID    → GET https://graph.microsoft.com/v1.0/sites/{seu-dominio}.sharepoint.com:/sites/{nome-do-site}
+   4. LIST_ID    → Crie uma lista "Reservas" no SharePoint e copie o ID via Graph Explorer
+      Colunas obrigatórias na lista:
+        - Title        (texto)   → título da reunião
+        - Sala         (texto)   → nome da sala
+        - Responsavel  (texto)   → responsável
+        - Inicio       (número)  → slot de início (0 = 07:00)
+        - Duracao      (número)  → duração em slots de 30 min
+        - Dia          (texto)   → data no formato YYYY-MM-DD
+   ================================================================ */
+
+const CONFIG = {
+  TENANT_ID : 'c4a37caf-8287-4208-a0d6-5d04541151db',
+  CLIENT_ID : '26cbbe7d-4489-4830-9ea2-4d5a1dece336',
+  SITE_ID   : 'coopertrunibr.sharepoint.com,3d238de9-2fc2-431c-84a3-4711405725e2,cad4f139-1953-46c4-a150-0cd44b7d4319',
+  LIST_ID   : '86ed0e10-18b9-4550-89ce-fd09ec2836f1',
+};
+
+/* ── Salas — adicione ou remova à vontade ── */
+const ROOMS = [
+  { name: 'Sala de Reunião', cap: '10 pessoas' },
+];
+
+/* ── Grade de horários ── */
+const HOUR_START  = 7;   // 07:00
+const HOUR_END    = 20;  // 20:00
+const SLOTS_TOTAL = (HOUR_END - HOUR_START) * 2;
+
+/* ================================================================ */
+
+const msalConfig = {
+  auth: {
+    clientId   : CONFIG.CLIENT_ID,
+    authority  : `https://login.microsoftonline.com/${CONFIG.TENANT_ID}`,
+    redirectUri: window.location.href.split('?')[0],
+  },
+  cache: { cacheLocation: 'sessionStorage' },
+};
+
+let msalInstance; // será inicializado após o MSAL carregar
+const SCOPES = ['Sites.ReadWrite.All'];
+
+let account = null;
+let currentDate = new Date();
+let dayBookings = [];
+let editingId = null;
+let isDemo = false;
+
+/* ── Demo mode quando CONFIG não preenchida ── */
+function checkDemo() {
+  if (CONFIG.TENANT_ID === 'SEU_TENANT_ID') {
+    isDemo = true;
+    document.getElementById('setup-banner').style.display = 'flex';
+  }
+}
+
+/* ── Auth ── */
+async function signIn() {
+  if (isDemo) { startApp(); return; }
+  try {
+    const resp = await msalInstance.loginPopup({ scopes: SCOPES });
+    account = resp.account;
+    startApp();
+  } catch(e) {
+    document.getElementById('login-error').textContent = 'Erro ao autenticar: ' + e.message;
+    document.getElementById('login-error').style.display = 'block';
+  }
+}
+
+async function getToken() {
+  if (isDemo) return null;
+  try {
+    const r = await msalInstance.acquireTokenSilent({ scopes: SCOPES, account });
+    return r.accessToken;
+  } catch {
+    const r = await msalInstance.acquireTokenPopup({ scopes: SCOPES, account });
+    return r.accessToken;
+  }
+}
+
+/* ── SharePoint List CRUD ── */
+async function fetchBookings(dateStr) {
+  if (isDemo) return getDemoBookings(dateStr);
+  const token = await getToken();
+  const url = `https://graph.microsoft.com/v1.0/sites/${CONFIG.SITE_ID}/lists/${CONFIG.LIST_ID}/items`
+    + `?expand=fields(select=Title,Sala,Responsavel,Inicio,Duracao,Dia)`;
+  const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+  if (!r.ok) throw new Error(`Graph API: ${r.status}`);
+  const data = await r.json();
+  return data.value.map(item => ({
+    id       : item.id,
+    title    : item.fields.Title,
+    room     : ROOMS.findIndex(rm => rm.name === item.fields.Sala),
+    person   : item.fields.Responsavel,
+    start    : parseInt(item.fields.Inicio),
+    duration : parseInt(item.fields.Duracao),
+    day      : item.fields.Dia,
+  })).filter(b => b.room >= 0 && b.day === dateStr);
+}
+
+async function createBooking(fields) {
+  if (isDemo) {
+    const b = { ...fields, id: 'demo-' + Date.now() };
+    dayBookings.push(b); return b;
+  }
+  const token = await getToken();
+  const url = `https://graph.microsoft.com/v1.0/sites/${CONFIG.SITE_ID}/lists/${CONFIG.LIST_ID}/items`;
+  const body = {
+    fields: {
+      Title        : fields.title,
+      Sala         : ROOMS[fields.room].name,
+      Responsavel  : fields.person,
+      Inicio       : fields.start,
+      Duracao      : fields.duration,
+      Dia          : fields.day,
+    }
+  };
+  const r = await fetch(url, {
+    method  : 'POST',
+    headers : { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body    : JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(`Erro ao criar: ${r.status}`);
+  return await r.json();
+}
+
+async function updateBooking(id, fields) {
+  if (isDemo) {
+    const i = dayBookings.findIndex(b => b.id === id);
+    if (i >= 0) dayBookings[i] = { ...dayBookings[i], ...fields };
+    return;
+  }
+  const token = await getToken();
+  const url = `https://graph.microsoft.com/v1.0/sites/${CONFIG.SITE_ID}/lists/${CONFIG.LIST_ID}/items/${id}/fields`;
+  const body = {
+    Title       : fields.title,
+    Sala        : ROOMS[fields.room].name,
+    Responsavel : fields.person,
+    Inicio      : fields.start,
+    Duracao     : fields.duration,
+  };
+  const r = await fetch(url, {
+    method  : 'PATCH',
+    headers : { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body    : JSON.stringify(body),
+  });
+  if (!r.ok) throw new Error(`Erro ao atualizar: ${r.status}`);
+}
+
+async function removeBooking(id) {
+  if (isDemo) { dayBookings = dayBookings.filter(b => b.id !== id); return; }
+  const token = await getToken();
+  const url = `https://graph.microsoft.com/v1.0/sites/${CONFIG.SITE_ID}/lists/${CONFIG.LIST_ID}/items/${id}`;
+  await fetch(url, { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+}
+
+/* ── Demo data ── */
+function getDemoBookings(dateStr) {
+  if (dayBookings.length && dayBookings[0].day === dateStr) return dayBookings;
+  const today = new Date().toISOString().slice(0,10);
+  if (dateStr !== today) return [];
+  return [
+    { id:'d1', room:0, start:2, duration:2, title:'Reunião de Planejamento', person:'Ana Lima', day:today },
+    { id:'d2', room:0, start:8, duration:4, title:'Alinhamento com Diretoria', person:'Carlos Mendes', day:today },
+  ];
+}
+
+/* ── UI helpers ── */
+function dateKey(d) { return d.toISOString().slice(0,10); }
+function slotLabel(s) {
+  const h = HOUR_START + Math.floor(s / 2);
+  const m = (s % 2) * 30;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}`;
+}
+function showToast(msg, ms=2400) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), ms);
+}
+
+/* ── Render ── */
+async function loadAndRender() {
+  document.getElementById('loading-overlay').style.display = 'flex';
+  try {
+    const key = dateKey(currentDate);
+    dayBookings = await fetchBookings(key);
+    renderGrid();
+  } catch(e) {
+    showToast('Erro ao carregar reservas: ' + e.message, 4000);
+  } finally {
+    document.getElementById('loading-overlay').style.display = 'none';
+  }
+}
+
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  grid.style.setProperty('--room-count', ROOMS.length);
+  const key = dateKey(currentDate);
+  const now = new Date();
+  const isToday = dateKey(now) === key;
+
+  let html = '<div style="border-right:1px solid var(--border);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:10;background:var(--bg)"></div>';
+  ROOMS.forEach(r => {
+    html += `<div class="col-header"><div class="col-name">${r.name}</div><div class="col-cap">${r.cap}</div></div>`;
+  });
+
+  for (let s = 0; s < SLOTS_TOTAL; s++) {
+    const label = s % 2 === 0 ? slotLabel(s) : '';
+    html += `<div class="time-cell">${label}</div>`;
+
+    const currentMinutes = (now.getHours() - HOUR_START) * 60 + now.getMinutes();
+    const slotMinutes = s * 30;
+    const isCurrentSlot = isToday && currentMinutes >= slotMinutes && currentMinutes < slotMinutes + 30;
+    const pct = isCurrentSlot ? ((currentMinutes - slotMinutes) / 30 * 100).toFixed(1) : null;
+
+    for (let r = 0; r < ROOMS.length; r++) {
+      const bookings = dayBookings.filter(b => b.room === r && b.start === s);
+      let inner = isCurrentSlot ? `<div class="now-line" style="top:${pct}%"></div>` : '';
+      bookings.forEach(b => {
+        const h = b.duration * 52 - 5;
+        inner += `<div class="booking-block c${r % 3}" style="height:${h}px" onclick="openEdit('${b.id}',event)">
+          <div class="booking-title">${b.title}</div>
+          <div class="booking-person">${b.person}</div>
+        </div>`;
+      });
+      html += `<div class="slot" onclick="openNewModalAt(${r},${s},event)">${inner}</div>`;
+    }
+  }
+
+  grid.innerHTML = html;
+
+  /* scroll to current time */
+  if (isToday) {
+    const currentSlot = Math.floor(((now.getHours() - HOUR_START) * 60 + now.getMinutes()) / 30);
+    const rowH = 52;
+    const scrollTo = Math.max(0, currentSlot * rowH - 120);
+    document.getElementById('grid-wrapper').scrollTop = scrollTo;
+  }
+
+  updateDateDisplay();
+}
+
+function updateDateDisplay() {
+  const opts = { weekday:'long', day:'numeric', month:'long', year:'numeric' };
+  document.getElementById('date-display').textContent =
+    currentDate.toLocaleDateString('pt-BR', opts);
+}
+
+function changeDay(delta) {
+  currentDate = new Date(currentDate);
+  currentDate.setDate(currentDate.getDate() + delta);
+  loadAndRender();
+}
+
+function goToday() {
+  currentDate = new Date();
+  loadAndRender();
+}
+
+/* ── Modal ── */
+function buildFormOptions(preRoom, preSlot) {
+  const roomSel = document.getElementById('f-room');
+  roomSel.innerHTML = ROOMS.map((r,i) =>
+    `<option value="${i}">${r.name} — ${r.cap}</option>`).join('');
+  roomSel.value = preRoom ?? 0;
+
+  const startSel = document.getElementById('f-start');
+  startSel.innerHTML = '';
+  for (let s = 0; s < SLOTS_TOTAL; s++) {
+    const o = document.createElement('option');
+    o.value = s; o.textContent = slotLabel(s);
+    startSel.appendChild(o);
+  }
+  startSel.value = preSlot ?? (8 - HOUR_START) * 2;
+
+  startSel.onchange = checkConflict;
+  document.getElementById('f-room').onchange = checkConflict;
+  document.getElementById('f-duration').onchange = checkConflict;
+}
+
+function checkConflict() {
+  const room     = parseInt(document.getElementById('f-room').value);
+  const start    = parseInt(document.getElementById('f-start').value);
+  const duration = parseInt(document.getElementById('f-duration').value);
+  const conflict = dayBookings.some(b =>
+    b.room === room && b.id !== editingId &&
+    b.start < start + duration && b.start + b.duration > start
+  );
+  document.getElementById('conflict-msg').style.display = conflict ? 'block' : 'none';
+  document.getElementById('btn-save').disabled = conflict;
+}
+
+function openNewModal() {
+  editingId = null;
+  document.getElementById('modal-title').textContent = 'Nova reserva';
+  document.getElementById('f-title').value = '';
+  document.getElementById('f-person').value = '';
+  document.getElementById('f-duration').value = 2;
+  buildFormOptions(0, (8 - HOUR_START) * 2);
+  document.getElementById('btn-delete').style.display = 'none';
+  document.getElementById('conflict-msg').style.display = 'none';
+  document.getElementById('btn-save').disabled = false;
+  document.getElementById('modal-bg').classList.add('open');
+  setTimeout(() => document.getElementById('f-title').focus(), 50);
+}
+
+function openNewModalAt(room, slot, e) {
+  if (e) e.stopPropagation();
+  openNewModal();
+  document.getElementById('f-room').value = room;
+  document.getElementById('f-start').value = slot;
+}
+
+function openEdit(id, e) {
+  if (e) e.stopPropagation();
+  const b = dayBookings.find(x => x.id === id);
+  if (!b) return;
+  editingId = id;
+  document.getElementById('modal-title').textContent = 'Editar reserva';
+  document.getElementById('f-title').value = b.title;
+  document.getElementById('f-person').value = b.person;
+  document.getElementById('f-duration').value = b.duration;
+  buildFormOptions(b.room, b.start);
+  document.getElementById('f-room').value = b.room;
+  document.getElementById('f-start').value = b.start;
+  document.getElementById('btn-delete').style.display = 'inline-flex';
+  document.getElementById('conflict-msg').style.display = 'none';
+  document.getElementById('btn-save').disabled = false;
+  document.getElementById('modal-bg').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('modal-bg').classList.remove('open');
+  editingId = null;
+}
+
+document.getElementById('modal-bg').addEventListener('click', e => {
+  if (e.target === document.getElementById('modal-bg')) closeModal();
+});
+
+async function saveBooking() {
+  const title  = document.getElementById('f-title').value.trim();
+  const person = document.getElementById('f-person').value.trim();
+  if (!title)  { document.getElementById('f-title').focus(); return; }
+  if (!person) { document.getElementById('f-person').focus(); return; }
+
+  const fields = {
+    title,
+    person,
+    room     : parseInt(document.getElementById('f-room').value),
+    start    : parseInt(document.getElementById('f-start').value),
+    duration : parseInt(document.getElementById('f-duration').value),
+    day      : dateKey(currentDate),
+  };
+
+  const btn = document.getElementById('btn-save');
+  btn.disabled = true; btn.textContent = 'Salvando…';
+
+  try {
+    if (editingId) {
+      await updateBooking(editingId, fields);
+      const i = dayBookings.findIndex(b => b.id === editingId);
+      if (i >= 0) dayBookings[i] = { ...dayBookings[i], ...fields };
+      showToast('Reserva atualizada ✓');
+    } else {
+      const created = await createBooking(fields);
+      if (!isDemo) dayBookings.push({ ...fields, id: created.id });
+      showToast('Sala reservada ✓');
+    }
+    closeModal();
+    renderGrid();
+  } catch(e) {
+    showToast('Erro: ' + e.message, 4000);
+  } finally {
+    btn.disabled = false; btn.textContent = 'Salvar';
+  }
+}
+
+async function deleteBooking() {
+  if (!confirm('Excluir esta reserva?')) return;
+  try {
+    await removeBooking(editingId);
+    dayBookings = dayBookings.filter(b => b.id !== editingId);
+    closeModal(); renderGrid();
+    showToast('Reserva removida');
+  } catch(e) {
+    showToast('Erro ao excluir: ' + e.message, 4000);
+  }
+}
+
+/* ── Start ── */
+function startApp() {
+  document.getElementById('login-screen').style.display = 'none';
+  document.getElementById('app').classList.add('visible');
+  loadAndRender();
+}
+
+/* ── Init — aguarda MSAL carregar ── */
+function initApp() {
+  msalInstance = new msal.PublicClientApplication(msalConfig);
+  checkDemo();
+  if (isDemo) {
+    startApp();
+  } else {
+    msalInstance.handleRedirectPromise().then(() => {
+      const accounts = msalInstance.getAllAccounts();
+      if (accounts.length > 0) { account = accounts[0]; startApp(); }
+    });
+  }
+}
+</script>
+
+<!-- MSAL carregado no final para garantir que o DOM e o script acima já estejam prontos -->
+<script
+  src="https://alcdn.msauth.net/browser/2.38.3/js/msal-browser.min.js"
+  onload="initApp()"
+  onerror="
+    var s=document.createElement('script');
+    s.src='https://cdn.jsdelivr.net/npm/@azure/msal-browser@2.38.3/lib/msal-browser.min.js';
+    s.onload=initApp;
+    document.head.appendChild(s);
+  ">
+</script>
+</body>
+</html>
